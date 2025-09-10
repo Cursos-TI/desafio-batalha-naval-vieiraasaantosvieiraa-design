@@ -1,0 +1,333 @@
+#include <stdio.h>
+#include <stdlib.h>
+
+#define TAM 10       // tamanho do tabuleiro (10x10)
+#define NAVIO 3      // valor que representa parte do navio
+#define AFFECT 5     // valor que representa área afetada por habilidade
+#define TAMANHO 3    // tamanho fixo dos navios (3 casas)
+#define SKILL_SZ 5   // dimensão das matrizes de habilidade (usar dimensão ímpar facilita o "centro")
+
+/*
+  Programa:
+  - inicializa um tabuleiro 10x10 com 0
+  - posiciona 4 navios (horizontal, vertical, diagonal principal e secundaria)
+  - cria 3 matrizes de habilidade (cone, cruz, octaedro/losango) dinamicamente
+  - sobrepõe essas matrizes no tabuleiro em pontos de origem especificados
+  - mostra o tabuleiro final (0 = água, 3 = navio, 5 = área afetada)
+*/
+
+// ------------------------------
+// Prototipos
+// ------------------------------
+void inicializarTabuleiro(int tab[TAM][TAM]);
+void exibirTabuleiro(int tab[TAM][TAM]);
+int posicionarNavioHorizontal(int tab[TAM][TAM], int linha, int coluna);
+int posicionarNavioVertical(int tab[TAM][TAM], int linha, int coluna);
+int posicionarNavioDiagonalPrincipal(int tab[TAM][TAM], int linha, int coluna);
+int posicionarNavioDiagonalSecundaria(int tab[TAM][TAM], int linha, int coluna);
+
+void construirMatrizCone(int mat[SKILL_SZ][SKILL_SZ]);
+void construirMatrizCruz(int mat[SKILL_SZ][SKILL_SZ]);
+void construirMatrizOctaedro(int mat[SKILL_SZ][SKILL_SZ]);
+
+/*
+ Sobreposição:
+ - mode = 0 -> "centered": a célula central da matriz de skill é alinhada ao ponto de origem do tabuleiro
+ - mode = 1 -> "top-centered" (usado para cone): a linha 0 da matriz corresponde à origem (origin = topo do cone),
+               e a coluna central da matriz é colocada na coluna de origem.
+*/
+void sobreporHabilidade(int tab[TAM][TAM], int skill[SKILL_SZ][SKILL_SZ], int originRow, int originCol, int mode);
+
+// ------------------------------
+// Implementações
+// ------------------------------
+void inicializarTabuleiro(int tab[TAM][TAM]) {
+    for (int i = 0; i < TAM; i++) {
+        for (int j = 0; j < TAM; j++) {
+            tab[i][j] = 0; // água
+        }
+    }
+}
+
+void exibirTabuleiro(int tab[TAM][TAM]) {
+    printf("\n=== TABULEIRO BATALHA NAVAL (0=água, 3=navio, 5=área afetada) ===\n\n");
+    // Imprimir cabeçalho de colunas (opcional, facilita visualização)
+    printf("   ");
+    for (int c = 0; c < TAM; c++) {
+        printf("%2d ", c);
+    }
+    printf("\n");
+
+    for (int i = 0; i < TAM; i++) {
+        printf("%2d ", i); // índice da linha
+        for (int j = 0; j < TAM; j++) {
+            printf("%2d ", tab[i][j]);
+        }
+        printf("\n");
+    }
+}
+
+// --------------------------
+// Posicionamento de navios
+// --------------------------
+int posicionarNavioHorizontal(int tab[TAM][TAM], int linha, int coluna) {
+    // Verifica limites
+    if (linha < 0 || linha >= TAM || coluna < 0 || coluna >= TAM) {
+        printf("Erro: coordenadas iniciais invalidas para horizontal.\n");
+        return 0;
+    }
+    if (coluna + TAMANHO > TAM) {
+        printf("Erro: navio horizontal fora dos limites!\n");
+        return 0;
+    }
+    // Verifica sobreposição
+    for (int j = coluna; j < coluna + TAMANHO; j++) {
+        if (tab[linha][j] == NAVIO) {
+            printf("Erro: sobreposição detectada ao posicionar horizontal.\n");
+            return 0;
+        }
+    }
+    // Posiciona
+    for (int j = coluna; j < coluna + TAMANHO; j++) {
+        tab[linha][j] = NAVIO;
+    }
+    return 1;
+}
+
+int posicionarNavioVertical(int tab[TAM][TAM], int linha, int coluna) {
+    if (linha < 0 || linha >= TAM || coluna < 0 || coluna >= TAM) {
+        printf("Erro: coordenadas iniciais invalidas para vertical.\n");
+        return 0;
+    }
+    if (linha + TAMANHO > TAM) {
+        printf("Erro: navio vertical fora dos limites!\n");
+        return 0;
+    }
+    for (int i = linha; i < linha + TAMANHO; i++) {
+        if (tab[i][coluna] == NAVIO) {
+            printf("Erro: sobreposição detectada ao posicionar vertical.\n");
+            return 0;
+        }
+    }
+    for (int i = linha; i < linha + TAMANHO; i++) {
+        tab[i][coluna] = NAVIO;
+    }
+    return 1;
+}
+
+int posicionarNavioDiagonalPrincipal(int tab[TAM][TAM], int linha, int coluna) {
+    if (linha < 0 || coluna < 0 || linha >= TAM || coluna >= TAM) {
+        printf("Erro: coordenadas iniciais invalidas para diagonal principal.\n");
+        return 0;
+    }
+    if (linha + TAMANHO > TAM || coluna + TAMANHO > TAM) {
+        printf("Erro: navio diagonal principal fora dos limites!\n");
+        return 0;
+    }
+    for (int k = 0; k < TAMANHO; k++) {
+        if (tab[linha + k][coluna + k] == NAVIO) {
+            printf("Erro: sobreposição detectada ao posicionar diagonal principal.\n");
+            return 0;
+        }
+    }
+    for (int k = 0; k < TAMANHO; k++) {
+        tab[linha + k][coluna + k] = NAVIO;
+    }
+    return 1;
+}
+
+int posicionarNavioDiagonalSecundaria(int tab[TAM][TAM], int linha, int coluna) {
+    if (linha < 0 || coluna < 0 || linha >= TAM || coluna >= TAM) {
+        printf("Erro: coordenadas iniciais invalidas para diagonal secundaria.\n");
+        return 0;
+    }
+    if (linha + TAMANHO > TAM || coluna - (TAMANHO - 1) < 0) {
+        printf("Erro: navio diagonal secundaria fora dos limites!\n");
+        return 0;
+    }
+    for (int k = 0; k < TAMANHO; k++) {
+        if (tab[linha + k][coluna - k] == NAVIO) {
+            printf("Erro: sobreposição detectada ao posicionar diagonal secundaria.\n");
+            return 0;
+        }
+    }
+    for (int k = 0; k < TAMANHO; k++) {
+        tab[linha + k][coluna - k] = NAVIO;
+    }
+    return 1;
+}
+
+// ---------------------------------
+// Construção dinâmica das habilidades
+// ---------------------------------
+
+// Cone apontando para baixo: ponto de origem será o topo do cone (linha 0 da matriz skill),
+// linha r (0..center) terá largura proporcional a r.
+// Implementação com loops aninhados e condicionais.
+void construirMatrizCone(int mat[SKILL_SZ][SKILL_SZ]) {
+    int center = SKILL_SZ / 2;
+    // Inicializa com zeros
+    for (int r = 0; r < SKILL_SZ; r++) {
+        for (int c = 0; c < SKILL_SZ; c++) {
+            mat[r][c] = 0;
+        }
+    }
+    // Preenche a forma de cone: para cada linha r (a partir do topo), ativar colunas do centro - r até centro + r
+    // Limitamos r para que o cone fique dentro do SKILL_SZ.
+    for (int r = 0; r <= center; r++) { // usamos apenas metade (top -> centro) para que pareça um cone
+        // calcula limites da largura na linha r
+        int left = center - r;
+        int right = center + r;
+        if (left < 0) left = 0;
+        if (right > SKILL_SZ - 1) right = SKILL_SZ - 1;
+        for (int c = left; c <= right; c++) {
+            mat[r][c] = 1;
+        }
+    }
+}
+
+// Cruz: linhas e colunas centradas na célula central da matriz.
+// (linha central inteira + coluna central inteira)
+void construirMatrizCruz(int mat[SKILL_SZ][SKILL_SZ]) {
+    int center = SKILL_SZ / 2;
+    for (int r = 0; r < SKILL_SZ; r++) {
+        for (int c = 0; c < SKILL_SZ; c++) {
+            if (r == center || c == center) {
+                mat[r][c] = 1;
+            } else {
+                mat[r][c] = 0;
+            }
+        }
+    }
+}
+
+// Octaedro (vista frontal -> losango/diamante): definimos por distância de Manhattan <= center
+void construirMatrizOctaedro(int mat[SKILL_SZ][SKILL_SZ]) {
+    int center = SKILL_SZ / 2;
+    for (int r = 0; r < SKILL_SZ; r++) {
+        for (int c = 0; c < SKILL_SZ; c++) {
+            int manhattan = abs(r - center) + abs(c - center);
+            if (manhattan <= center) {
+                mat[r][c] = 1;
+            } else {
+                mat[r][c] = 0;
+            }
+        }
+    }
+}
+
+// ---------------------------------
+// Sobrepor habilidade no tabuleiro
+// ---------------------------------
+void sobreporHabilidade(int tab[TAM][TAM], int skill[SKILL_SZ][SKILL_SZ], int originRow, int originCol, int mode) {
+    int center = SKILL_SZ / 2;
+    // mode == 0 -> centered overlay (center of skill -> origin)
+    // mode == 1 -> top-centered overlay (row 0 of skill aligns with originRow; center column aligns with originCol)
+    for (int r = 0; r < SKILL_SZ; r++) {
+        for (int c = 0; c < SKILL_SZ; c++) {
+            if (skill[r][c] != 1) continue; // só processa células afetadas
+            int boardR, boardC;
+            if (mode == 0) {
+                // centraliza a skill no ponto de origem
+                boardR = originRow + (r - center);
+                boardC = originCol + (c - center);
+            } else {
+                // top-centered: skill linha 0 -> originRow; coluna central da skill -> originCol
+                boardR = originRow + r;
+                boardC = originCol + (c - center);
+            }
+            // Validação de limites: garante que não iremos acessar fora do tabuleiro
+            if (boardR < 0 || boardR >= TAM || boardC < 0 || boardC >= TAM) {
+                // célula da skill cai fora do tabuleiro, ignorar (simplificação permitida)
+                continue;
+            }
+            // Marca como área afetada (sobrescreve navio se houver)
+            tab[boardR][boardC] = AFFECT;
+        }
+    }
+}
+
+// ------------------------------
+// Programa principal
+// ------------------------------
+int main() {
+    int tabuleiro[TAM][TAM];
+
+    // Inicializa tabuleiro
+    inicializarTabuleiro(tabuleiro);
+
+    printf("Posicionando navios...\n");
+
+    // Coordenadas definidas diretamente no código (sem input do usuário)
+    // Escolhi posições que não sobrepõem entre si:
+    int linhaH = 2, colunaH = 4; // navio horizontal
+    int linhaV = 6, colunaV = 1; // navio vertical
+    int linhaD1 = 0, colunaD1 = 7; // navio diagonal principal ↘
+    int linhaD2 = 4, colunaD2 = 9; // navio diagonal secundária ↙
+
+    // Posicionando os quatro navios com verificação de sucesso
+    if (!posicionarNavioHorizontal(tabuleiro, linhaH, colunaH)) {
+        printf("Falha ao posicionar navio horizontal.\n");
+    }
+    if (!posicionarNavioVertical(tabuleiro, linhaV, colunaV)) {
+        printf("Falha ao posicionar navio vertical.\n");
+    }
+    if (!posicionarNavioDiagonalPrincipal(tabuleiro, linhaD1, colunaD1)) {
+        printf("Falha ao posicionar navio diagonal principal.\n");
+    }
+    if (!posicionarNavioDiagonalSecundaria(tabuleiro, linhaD2, colunaD2)) {
+        printf("Falha ao posicionar navio diagonal secundaria.\n");
+    }
+
+    // Criar matrizes de habilidade dinamicamente (5x5) usando as funções
+    int cone[SKILL_SZ][SKILL_SZ];
+    int cruz[SKILL_SZ][SKILL_SZ];
+    int octaedro[SKILL_SZ][SKILL_SZ];
+
+    construirMatrizCone(cone);
+    construirMatrizCruz(cruz);
+    construirMatrizOctaedro(octaedro);
+
+    // Exibir as matrizes de habilidade (para depuração / visualização)
+    printf("\nMATRIZ HABILIDADE - CONE (1=afetado):\n");
+    for (int r = 0; r < SKILL_SZ; r++) {
+        for (int c = 0; c < SKILL_SZ; c++) {
+            printf("%d ", cone[r][c]);
+        }
+        printf("\n");
+    }
+
+    printf("\nMATRIZ HABILIDADE - CRUZ (1=afetado):\n");
+    for (int r = 0; r < SKILL_SZ; r++) {
+        for (int c = 0; c < SKILL_SZ; c++) {
+            printf("%d ", cruz[r][c]);
+        }
+        printf("\n");
+    }
+
+    printf("\nMATRIZ HABILIDADE - OCTAEDRO/DIAMANTE (1=afetado):\n");
+    for (int r = 0; r < SKILL_SZ; r++) {
+        for (int c = 0; c < SKILL_SZ; c++) {
+            printf("%d ", octaedro[r][c]);
+        }
+        printf("\n");
+    }
+
+    // Definindo pontos de origem das habilidades no tabuleiro
+    // Para o cone, definimos a origem como o topo do cone (linha, coluna) -> mode = 1 (top-centered)
+    int originConeR = 1, originConeC = 3;
+    // Para cruz e octaedro, definimos a origem como o centro da habilidade -> mode = 0 (centered)
+    int originCruzR = 7, originCruzC = 4;
+    int originOctR = 3, originOctC = 8;
+
+    // Sobrepor as habilidades no tabuleiro (observação: sobrescreve navios com valor AFFECT)
+    sobreporHabilidade(tabuleiro, cone, originConeR, originConeC, 1);   // cone: top-centered
+    sobreporHabilidade(tabuleiro, cruz, originCruzR, originCruzC, 0);   // cruz: centered
+    sobreporHabilidade(tabuleiro, octaedro, originOctR, originOctC, 0);// octaedro: centered
+
+    // Exibir tabuleiro final
+    exibirTabuleiro(tabuleiro);
+
+    printf("\nLegenda: 0=agua, 3=navio, 5=area afetada pela habilidade (pode sobrepor navio)\n\n");
+    return 0;
+}
